@@ -1,16 +1,21 @@
-// server.js
 import express from "express";
 import mysql from "mysql2";
 import cors from "cors";
 
 const app = express();
-const PORT = 5000;
 
-// ✅ Middleware
-app.use(cors()); // allow cross-origin requests
-app.use(express.json()); // parse JSON request bodies
+// Enable CORS for React frontend
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
 
-// ✅ MySQL Connection
+app.use(express.json());
+
+// Connect to the DB
 const db = mysql.createConnection({
   host: "localhost",
   user: "root",
@@ -19,63 +24,71 @@ const db = mysql.createConnection({
 });
 
 db.connect((err) => {
-  if (err) return console.error("❌ DB connection failed:", err);
-  console.log("✅ Connected to MySQL");
+  if (err) console.error("❌ MySQL connection failed:", err);
+  else console.log("✅ MySQL connected to reno DB");
 });
 
-// ✅ Routes
+/* =======================
+   SCHOOLS TABLE ROUTES
+======================= */
 
-// Get all schools
+// GET all schools
 app.get("/schools", (req, res) => {
-  const sql = "SELECT * FROM schools";
-  db.query(sql, (err, results) => {
-    if (err) return res.status(500).json({ error: "Database error" });
-
-    const data = results.map((school) => ({
-      id: school.id,
-      name: school.name,
-      address: school.address,
-      city: school.city,
-      state: school.state,
-      contact: school.contact,
-      email_id: school.email_id,
-      image: school.image,
-    }));
-
-    res.json(data);
+  db.query("SELECT * FROM schools", (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
   });
 });
 
-// Get single school by ID
+// GET one school by id
 app.get("/schools/:id", (req, res) => {
-  const { id } = req.params;
-  const sql = "SELECT * FROM schools WHERE id = ?";
-  db.query(sql, [id], (err, results) => {
-    if (err) return res.status(500).json({ error: "Database error" });
-    if (results.length === 0)
-      return res.status(404).json({ error: "School not found" });
+  db.query(
+    "SELECT * FROM schools WHERE id = ?",
+    [req.params.id],
+    (err, results) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(results[0]);
+    }
+  );
+});
 
-    const school = {
-      id: results[0].id,
-      name: results[0].name,
-      address: results[0].address,
-      city: results[0].city,
-      state: results[0].state,
-      contact: results[0].contact,
-      email_id: results[0].email_id,
-      image: results[0].image,
-    };
+/* =======================
+   STUDENTS TABLE ROUTES
+======================= */
 
-    res.json(school);
+// GET all students
+app.get("/students", (req, res) => {
+  db.query("SELECT * FROM students", (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
   });
 });
 
-// ✅ Handle unmatched routes
-app.use((req, res) => {
-  res.status(404).json({ error: "Route not found" });
+// POST new student (application)
+app.post("/students", (req, res) => {
+  const { name, contact, email, classNumber } = req.body;
+
+  if (!name || !contact || !email || !classNumber) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
+
+  db.query(
+    "INSERT INTO students (name, class_number, contact, email) VALUES (?,?,?,?)",
+    [name, classNumber, contact, email],
+    (err, results) => {
+      if (err) {
+        console.error("DB Error:", err);
+        return res.status(500).json({ error: err.message });
+      }
+      res.status(201).json({
+        message: "Student added successfully",
+        id: results.insertId,
+      });
+    }
+  );
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+app.listen(5000, () => {
+  console.log("🚀 Server running at http://localhost:5000");
 });
